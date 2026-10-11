@@ -108,19 +108,19 @@ button, input, select, textarea, a.interactive-btn {
 
 @media (min-width: 768px) {
   .main-content {
-    padding: var(--space-8) var(--space-6) var(--space-12);
+    padding: var(--space-8) var(--space-6) 120px;
   }
 }
 
 @media (min-width: 1024px) {
   .main-content {
-    padding: var(--space-8) var(--space-8) calc(var(--space-12) + var(--space-6));
+    padding: var(--space-8) var(--space-8) 130px;
   }
 }
 
 @media (min-width: 1920px) {
   .main-content {
-    padding: var(--space-10) var(--space-10) calc(var(--space-12) + var(--space-8));
+    padding: var(--space-10) var(--space-10) 150px;
   }
 }
 

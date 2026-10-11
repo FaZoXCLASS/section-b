@@ -79,6 +79,13 @@ export function updateBottomNav(state = {}) {
   const bottomNav = document.getElementById('bottom-nav');
   if (!bottomNav) return;
 
+  // Sur ordinateur et tablette (>= 768px), la barre mobile est strictement masquée
+  if (window.innerWidth >= 768) {
+    bottomNav.classList.remove('is-visible');
+    bottomNav.style.display = 'none';
+    return;
+  }
+
   if (!state.pseudo && !state.isAdmin) {
     bottomNav.classList.remove('is-visible');
     bottomNav.style.display = 'none';
@@ -86,7 +93,7 @@ export function updateBottomNav(state = {}) {
   }
 
   bottomNav.classList.add('is-visible');
-  bottomNav.style.display = '';
+  bottomNav.style.display = 'flex';
   bottomNav.innerHTML = '';
 
   const homeTab = h('a', { href: '#/', className: 'tab-item' }, [
@@ -225,5 +232,10 @@ document.addEventListener('visibilitychange', async () => {
       router.resolve();
     }
   }
+});
+
+// Réajustement lors du redimensionnement de l'écran (passage mobile <-> desktop)
+window.addEventListener('resize', () => {
+  updateBottomNav(session.getState());
 });
 

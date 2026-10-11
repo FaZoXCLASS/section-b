@@ -165,6 +165,7 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-4);
+  margin-bottom: var(--space-8);
 }
 
 @media (min-width: 640px) {
@@ -497,6 +498,7 @@
   background-color: var(--bg-surface-1);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
+  margin-bottom: var(--space-8);
 }
 
 .admin-table {

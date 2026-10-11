@@ -113,7 +113,7 @@ export async function openCreatePostModal({
   });
 
   const dropzone = h('div', { className: 'file-dropzone' }, [
-    icon('image', 'svg-icon'),
+    icon('image', 'dropzone-icon'),
     h('p', { style: 'margin: 8px 0 4px; font-weight: 500; color: var(--text-primary);' },
       'Glisse tes photos ou PDF ici, ou clique pour parcourir'
     ),
