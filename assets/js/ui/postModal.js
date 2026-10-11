@@ -2,7 +2,7 @@
 // GÉNIE CIVIL SECTION B — MODALE DE CRÉATION DE PUBLICATION (postModal.js)
 // ==============================================================================
 
-import { CONFIG } from '../../config.js';
+import { CONFIG } from '../../../config.js';
 import { api } from '../api.js';
 import { session } from '../session.js';
 import { storage } from '../storage.js';
