@@ -728,6 +728,11 @@ function openModuleCreateModal(onSuccess) {
   const nameInput = h('input', { type: 'text', className: 'input', placeholder: 'Ex : Résistance des Matériaux' });
   const teacherInput = h('input', { type: 'text', className: 'input', placeholder: 'Ex : M. KACI' });
   const orderInput = h('input', { type: 'number', className: 'input', value: '1' });
+  const errorEl = h('div', { className: 'form-error', style: 'display:none; margin-top:8px;' });
+
+  // Effacer l'erreur quand l'utilisateur modifie les champs
+  nameInput.addEventListener('input', () => { errorEl.style.display = 'none'; });
+  catSelect.addEventListener('change', () => { errorEl.style.display = 'none'; });
 
   const saveBtn = h('button', {
     type: 'button',
@@ -735,16 +740,27 @@ function openModuleCreateModal(onSuccess) {
     onClick: async () => {
       const name = nameInput.value.trim();
       if (!name) {
-        toast.warning('Le nom de la matière est obligatoire.');
+        errorEl.textContent = 'Le nom de la matière est obligatoire.';
+        errorEl.style.display = 'block';
+        nameInput.focus();
         return;
       }
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Création...';
+      errorEl.style.display = 'none';
+
       try {
         await api.adminCreateModule(catSelect.value, name, teacherInput.value, parseInt(orderInput.value, 10) || 0);
         toast.success('Matière créée avec succès.');
         modal.close();
         if (onSuccess) onSuccess();
       } catch (err) {
+        errorEl.textContent = err.message || 'Erreur lors de la création.';
+        errorEl.style.display = 'block';
         toast.error(err.message || 'Erreur lors de la création.');
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Créer';
       }
     },
   }, 'Créer');
@@ -756,6 +772,7 @@ function openModuleCreateModal(onSuccess) {
       h('div', { className: 'form-group' }, [h('label', { className: 'form-label' }, 'Nom de la matière'), nameInput]),
       h('div', { className: 'form-group' }, [h('label', { className: 'form-label' }, 'Enseignant (optionnel)'), teacherInput]),
       h('div', { className: 'form-group' }, [h('label', { className: 'form-label' }, 'Ordre d\'affichage'), orderInput]),
+      errorEl,
     ]),
     footer: [
       h('button', { type: 'button', className: 'btn btn-secondary', onClick: () => modal.close() }, 'Annuler'),
@@ -768,13 +785,26 @@ function openModuleEditModal(mod, onSuccess) {
   const nameInput = h('input', { type: 'text', className: 'input', value: mod.name });
   const teacherInput = h('input', { type: 'text', className: 'input', value: mod.teacher || '' });
   const orderInput = h('input', { type: 'number', className: 'input', value: String(mod.sort_order || 0) });
+  const errorEl = h('div', { className: 'form-error', style: 'display:none; margin-top:8px;' });
+
+  nameInput.addEventListener('input', () => { errorEl.style.display = 'none'; });
 
   const saveBtn = h('button', {
     type: 'button',
     className: 'btn btn-primary',
     onClick: async () => {
       const name = nameInput.value.trim();
-      if (!name) return;
+      if (!name) {
+        errorEl.textContent = 'Le nom de la matière est obligatoire.';
+        errorEl.style.display = 'block';
+        nameInput.focus();
+        return;
+      }
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Enregistrement...';
+      errorEl.style.display = 'none';
+
       try {
         await api.adminUpdateModule(mod.id, {
           name,
@@ -785,7 +815,11 @@ function openModuleEditModal(mod, onSuccess) {
         modal.close();
         if (onSuccess) onSuccess();
       } catch (err) {
+        errorEl.textContent = err.message || 'Erreur lors de la modification.';
+        errorEl.style.display = 'block';
         toast.error(err.message || 'Erreur lors de la modification.');
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Enregistrer';
       }
     },
   }, 'Enregistrer');
@@ -794,8 +828,9 @@ function openModuleEditModal(mod, onSuccess) {
     title: `Modifier la matière : ${mod.name}`,
     content: h('div', { style: 'display:flex; flex-direction:column; gap:12px;' }, [
       h('div', { className: 'form-group' }, [h('label', { className: 'form-label' }, 'Nom de la matière'), nameInput]),
-      h('div', { className: 'form-group' }, [h('label', { className: 'form-label' }, 'Enseignant'), teacherInput]),
+      h('div', { className: 'form-group' }, [h('label', { className: 'form-label' }, 'Enseignant (optionnel)'), teacherInput]),
       h('div', { className: 'form-group' }, [h('label', { className: 'form-label' }, 'Ordre d\'affichage'), orderInput]),
+      errorEl,
     ]),
     footer: [
       h('button', { type: 'button', className: 'btn btn-secondary', onClick: () => modal.close() }, 'Annuler'),

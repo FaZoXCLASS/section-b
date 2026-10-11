@@ -50,6 +50,12 @@ export function formatApiError(err) {
   if (msg.includes('presque plein')) {
     return 'L\'espace de stockage est presque plein (≥ 95%). Contacte l\'administrateur.';
   }
+  if (msg.includes('uq_modules_category_name') || (msg.includes('duplicate key') && msg.includes('modules'))) {
+    return 'Cette matière existe déjà dans cette catégorie (Cours, TD ou TP). Choisis un autre nom ou modifie la matière existante dans la liste.';
+  }
+  if (msg.includes('duplicate key')) {
+    return 'Cet élément existe déjà dans la base de données.';
+  }
 
   return msg;
 }
