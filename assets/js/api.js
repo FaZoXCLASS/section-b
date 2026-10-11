@@ -114,6 +114,19 @@ export const api = {
    * @param {string} [token]
    */
   async listModules(token = null) {
+    // Si l'administrateur est connecté, charger directement les modules sans blocage de jeton étudiant
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session?.user) {
+        const adminMods = await this.adminListModules();
+        if (adminMods && adminMods.length > 0) {
+          return adminMods;
+        }
+      }
+    } catch {
+      // Poursuivre vers RPC pour les étudiants
+    }
+
     const { data, error } = await supabase.rpc('list_modules', {
       p_token: token,
     });
@@ -391,6 +404,19 @@ export const api = {
   async adminDeleteMember(memberId) {
     const { error } = await supabase.from('members').delete().eq('id', memberId);
     if (error) throw new Error(formatApiError(error));
+  },
+
+  /**
+   * Récupère la liste complète des modules pour l'administrateur (actifs et archivés).
+   */
+  async adminListModules() {
+    const { data, error } = await supabase
+      .from('modules')
+      .select('id, category, name, teacher, sort_order, is_archived, created_at')
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true });
+    if (error) throw new Error(formatApiError(error));
+    return data || [];
   },
 
   /**

@@ -625,9 +625,10 @@ function openBanMemberModal(m, onSuccess) {
 async function renderModulesTab(container) {
   let modules = [];
   try {
-    modules = await api.listModules();
+    modules = await api.adminListModules();
   } catch (err) {
-    toast.error('Erreur chargement des modules.');
+    console.error('[Admin] Erreur chargement modules:', err);
+    toast.error(err.message || 'Erreur chargement des modules.');
   }
 
   const toolbar = h('div', {

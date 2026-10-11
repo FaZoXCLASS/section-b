@@ -166,7 +166,7 @@ DROP POLICY IF EXISTS admin_all_post_files ON public.post_files;
 CREATE POLICY admin_all_post_files ON public.post_files FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
 
 DROP POLICY IF EXISTS admin_all_admins ON public.admins;
-CREATE POLICY admin_all_admins ON public.admins FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY admin_all_admins ON public.admins FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
 DROP POLICY IF EXISTS admin_all_settings ON public.settings;
 CREATE POLICY admin_all_settings ON public.settings FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
@@ -425,8 +425,10 @@ BEGIN
         END IF;
     END IF;
 
-    SELECT coalesce(jsonb_agg(
-        jsonb_build_object(
+    SELECT coalesce(jsonb_agg(sub.mod_json), '[]'::jsonb)
+    INTO v_result
+    FROM (
+        SELECT jsonb_build_object(
             'id', m.id,
             'category', m.category,
             'name', m.name,
@@ -435,13 +437,13 @@ BEGIN
             'is_archived', m.is_archived,
             'post_count', count(p.id),
             'latest_post_at', max(p.created_at)
-        ) ORDER BY m.sort_order ASC, m.name ASC
-    ), '[]'::jsonb)
-    INTO v_result
-    FROM public.modules m
-    LEFT JOIN public.posts p ON p.module_id = m.id
-    WHERE (v_is_adm OR m.is_archived = false)
-    GROUP BY m.id, m.category, m.name, m.teacher, m.sort_order, m.is_archived;
+        ) AS mod_json
+        FROM public.modules m
+        LEFT JOIN public.posts p ON p.module_id = m.id
+        WHERE (v_is_adm OR m.is_archived = false)
+        GROUP BY m.id, m.category, m.name, m.teacher, m.sort_order, m.is_archived
+        ORDER BY m.sort_order ASC, m.name ASC
+    ) sub;
 
     RETURN v_result;
 END;
