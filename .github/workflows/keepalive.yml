@@ -13,7 +13,16 @@ jobs:
       - name: Ping Supabase Project
         run: |
           echo "Pinging Supabase RPC ping() function to prevent 7-day inactivity pause..."
-          STATUS=$(curl -s -o response.txt -w "%{http_code}" -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/rpc/ping" \
+          
+          # Nettoyage automatique pour tolérer les erreurs de saisie (/rest/v1 ou slash de fin)
+          RAW_URL="${{ secrets.SUPABASE_URL }}"
+          CLEAN_URL="${RAW_URL%/}"
+          CLEAN_URL="${CLEAN_URL%/rest/v1}"
+          CLEAN_URL="${CLEAN_URL%/}"
+
+          echo "Target endpoint: ${CLEAN_URL}/rest/v1/rpc/ping"
+
+          STATUS=$(curl -s -o response.txt -w "%{http_code}" -X POST "${CLEAN_URL}/rest/v1/rpc/ping" \
             -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
             -H "Content-Type: application/json" \

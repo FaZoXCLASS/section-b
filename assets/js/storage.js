@@ -10,7 +10,7 @@ import { CONFIG } from '../../config.js';
 
 class SupabaseStorageAdapter {
   constructor(baseUrl, bucketName) {
-    this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.baseUrl = baseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
     this.bucketName = bucketName;
   }
 

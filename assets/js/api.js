@@ -5,8 +5,14 @@
 import { CONFIG } from '../../config.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.8/+esm';
 
+// Nettoyage de sécurité de l'URL Supabase (retire tout /rest/v1 et slashes de fin)
+export const cleanBaseUrl = (CONFIG.SUPABASE_URL || '')
+  .trim()
+  .replace(/\/rest\/v1\/?$/, '')
+  .replace(/\/+$/, '');
+
 // Initialisation unique du client Supabase avec la clé anon publique
-export const supabase = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
+export const supabase = createClient(cleanBaseUrl, CONFIG.SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
@@ -173,7 +179,7 @@ export const api = {
       headers['Authorization'] = `Bearer ${sessionData.session.access_token}`;
     }
 
-    const res = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/${CONFIG.EDGE_FUNCTION_NAME}`, {
+    const res = await fetch(`${cleanBaseUrl}/functions/v1/${CONFIG.EDGE_FUNCTION_NAME}`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -202,7 +208,7 @@ export const api = {
       headers['Authorization'] = `Bearer ${sessionData.session.access_token}`;
     }
 
-    const res = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/${CONFIG.EDGE_FUNCTION_NAME}`, {
+    const res = await fetch(`${cleanBaseUrl}/functions/v1/${CONFIG.EDGE_FUNCTION_NAME}`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -233,7 +239,7 @@ export const api = {
         headers['Authorization'] = `Bearer ${sessionData.session.access_token}`;
       }
 
-      await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/${CONFIG.EDGE_FUNCTION_NAME}`, {
+      await fetch(`${cleanBaseUrl}/functions/v1/${CONFIG.EDGE_FUNCTION_NAME}`, {
         method: 'POST',
         headers,
         body: JSON.stringify({

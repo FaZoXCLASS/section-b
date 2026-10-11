@@ -184,7 +184,8 @@ Les projets gratuits de Supabase se mettent automatiquement en pause après 7 jo
 1. Sur votre dépôt GitHub, allez dans **Settings** → **Secrets and variables** → **Actions**.
 2. Cliquez sur **« New repository secret »** :
    - **Name** : `SUPABASE_URL`
-   - **Secret** : Collez l'URL de votre projet Supabase (ex : `https://abcdef.supabase.co`).
+   - **Secret** : Collez l'URL de base de votre projet Supabase (ex : `https://abcdef.supabase.co`).
+     > ⚠️ **Attention** : Ne rajoutez **pas** `/rest/v1/` ni de `/` à la fin ! Mettez simplement `https://votre-projet.supabase.co`.
    - Cliquez sur **Add secret**.
 3. Cliquez à nouveau sur **« New repository secret »** :
    - **Name** : `SUPABASE_ANON_KEY`

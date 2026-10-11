@@ -7,7 +7,7 @@
 
 export const CONFIG = {
   // 1. Paramètres Supabase (trouvés dans Dashboard -> Project Settings -> API)
-  SUPABASE_URL: 'https://ccutzmlqausxkbqlnaju.supabase.co/rest/v1/',
+  SUPABASE_URL: 'https://ccutzmlqausxkbqlnaju.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_i8Xx_tmvmPCmm0JSDfn22A_Ua2k6yB1',
 
   // 2. Nom de l'Edge Function et du Bucket de stockage
