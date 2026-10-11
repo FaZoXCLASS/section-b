@@ -1,0 +1,157 @@
+/* ==============================================================================
+   GÉNIE CIVIL SECTION B — BASE & LAYOUT (base.css)
+   ============================================================================== */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  color-scheme: dark;
+  scroll-behavior: smooth;
+  height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  position: relative;
+
+  /* Blueprint Grid Motif & Warm Radial Vignette */
+  background-image:
+    linear-gradient(var(--grid-line-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line-color) 1px, transparent 1px),
+    radial-gradient(circle at 50% -10%, rgba(217, 164, 65, 0.08) 0%, transparent 60%),
+    radial-gradient(circle at 10% 90%, rgba(56, 189, 248, 0.04) 0%, transparent 50%);
+  background-size: 28px 28px, 28px 28px, 100% 100%, 100% 100%;
+  background-attachment: fixed;
+}
+
+/* --- TYPOGRAPHIE --- */
+
+h1, h2, h3, h4, .font-serif {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-primary);
+  letter-spacing: -0.015em;
+}
+
+h1 { font-size: var(--text-3xl); margin-bottom: var(--space-4); }
+h2 { font-size: var(--text-2xl); margin-bottom: var(--space-3); }
+h3 { font-size: var(--text-xl); margin-bottom: var(--space-2); }
+h4 { font-size: var(--text-lg); margin-bottom: var(--space-2); }
+
+p {
+  color: var(--text-secondary);
+  margin-bottom: var(--space-3);
+}
+
+p:last-child {
+  margin-bottom: 0;
+}
+
+a {
+  color: var(--accent-gold);
+  text-decoration: none;
+  transition: color var(--duration-fast) ease;
+}
+
+a:hover {
+  color: var(--accent-gold-hover);
+  text-decoration: underline;
+}
+
+/* Accessibilité: focus visible élégant */
+:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+/* Touch targets minimaux (≥ 44px sur mobile) */
+button, input, select, textarea, a.interactive-btn {
+  font-family: inherit;
+  font-size: 1rem; /* Empêche le zoom automatique sur iPhone Safari */
+  touch-action: manipulation;
+}
+
+/* --- STRUCTURE D'APPLICATION (LAYOUT) --- */
+
+#app-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.main-content {
+  flex: 1;
+  width: 100%;
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) calc(var(--space-12) + var(--safe-bottom) + 50px);
+}
+
+@media (min-width: 768px) {
+  .main-content {
+    padding: var(--space-8) var(--space-6) calc(var(--space-8) + var(--safe-bottom));
+  }
+}
+
+/* Barre de défilement discrète */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-app);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-surface-3);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-gold-border);
+}
+
+/* --- ANIMATIONS & TRANSITIONS --- */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.8; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-fade {
+  animation: fadeIn var(--duration-normal) var(--ease-spring) forwards;
+}
+
+/* Respect de la préférence utilisateur 'prefers-reduced-motion' */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

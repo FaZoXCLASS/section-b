@@ -1,0 +1,17 @@
+{
+  "name": "Génie civil Section B",
+  "short_name": "Section B",
+  "description": "Entraide et partage de ressources pédagogiques de la section Génie Civil B.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0a0f1e",
+  "theme_color": "#0a0f1e",
+  "icons": [
+    {
+      "src": "assets/img/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Génie civil Section B — Entraide & Ressources</title>
+  <meta name="description" content="Plateforme privée d'entraide et de partage de cours, TD et TP pour la section Génie Civil B (1ère année ingénieur).">
+  
+  <!-- Content Security Policy strict -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'self';">
+
+  <!-- Mobile & PWA meta tags -->
+  <meta name="theme-color" content="#080d1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+
+  <!-- Google Fonts : Fraunces (Titres ingénieur / académique) & Inter (Interface) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Feuilles de style modulaires -->
+  <link rel="stylesheet" href="assets/css/tokens.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/pages.css">
+</head>
+<body>
+  <div id="app-root">
+    <!-- En-tête principal de navigation (Desktop & Tablette) -->
+    <header id="site-header" class="site-header" style="display:none;"></header>
+
+    <!-- Conteneur principal d'injection des pages -->
+    <main id="main-view" class="main-content" role="main" tabindex="-1">
+      <!-- Les vues sont injectées ici dynamiquement par le routeur -->
+    </main>
+
+    <!-- Barre d'onglets inférieure pour smartphone -->
+    <nav id="bottom-nav" class="bottom-tab-bar" style="display:none;" aria-label="Navigation mobile"></nav>
+  </div>
+
+  <!-- Conteneur global de notifications toast -->
+  <div id="toast-container" role="status" aria-live="polite"></div>
+
+  <!-- Visionneuse d'images Lightbox accessible -->
+  <div id="lightbox-overlay" class="lightbox-overlay" role="dialog" aria-modal="true" aria-label="Agrandissement de l'image">
+    <div class="lightbox-topbar">
+      <span id="lightbox-counter">1 / 1</span>
+      <button type="button" id="lightbox-close-btn" class="btn btn-ghost btn-sm" aria-label="Fermer la visionneuse">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="lightbox-viewport" id="lightbox-viewport">
+      <button type="button" id="lightbox-prev-btn" class="lightbox-nav-btn lightbox-prev" aria-label="Image précédente">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <img id="lightbox-img" class="lightbox-image" src="" alt="Aperçu agrandi" />
+      <button type="button" id="lightbox-next-btn" class="lightbox-nav-btn lightbox-next" aria-label="Image suivante">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Point d'entrée applicatif JavaScript (ES Modules) -->
+  <script type="module" src="assets/js/app.js"></script>
+</body>
+</html>

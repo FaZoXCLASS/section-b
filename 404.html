@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirection — Génie civil Section B</title>
+  <script>
+    // GitHub Pages SPA fallback: preserves path/hash and redirects to index.html
+    const segment = location.pathname.split('/').filter(Boolean).pop();
+    if (segment && !segment.includes('.')) {
+      location.replace('./#/' + segment + location.search + location.hash);
+    } else {
+      location.replace('./' + location.search + location.hash);
+    }
+  </script>
+</head>
+<body style="background:#0a0f1e;color:#e9ecf5;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+  <p>Redirection vers Génie civil Section B...</p>
+</body>
+</html>
