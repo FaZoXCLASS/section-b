@@ -80,11 +80,13 @@ export function updateBottomNav(state = {}) {
   if (!bottomNav) return;
 
   if (!state.pseudo && !state.isAdmin) {
+    bottomNav.classList.remove('is-visible');
     bottomNav.style.display = 'none';
     return;
   }
 
-  bottomNav.style.display = 'flex';
+  bottomNav.classList.add('is-visible');
+  bottomNav.style.display = '';
   bottomNav.innerHTML = '';
 
   const homeTab = h('a', { href: '#/', className: 'tab-item' }, [

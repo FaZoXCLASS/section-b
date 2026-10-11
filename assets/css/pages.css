@@ -120,11 +120,18 @@
   }
 }
 
+@media (min-width: 1600px) {
+  .category-grid {
+    gap: var(--space-6);
+  }
+}
+
 .category-card {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 160px;
+  height: 100%;
+  min-height: 170px;
   padding: var(--space-6);
 }
 
@@ -163,12 +170,35 @@
 @media (min-width: 640px) {
   .modules-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-4);
   }
 }
 
 @media (min-width: 1024px) {
   .modules-grid {
     grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-5);
+  }
+}
+
+@media (min-width: 1600px) {
+  .modules-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-5);
+  }
+}
+
+@media (min-width: 2400px) {
+  .modules-grid {
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--space-6);
+  }
+}
+
+@media (min-width: 3400px) {
+  .modules-grid {
+    grid-template-columns: repeat(6, 1fr);
+    gap: var(--space-6);
   }
 }
 
@@ -176,7 +206,8 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 140px;
+  height: 100%;
+  min-height: 150px;
 }
 
 .module-teacher {
@@ -285,6 +316,20 @@
   }
 }
 
+@media (min-width: 1600px) {
+  .image-gallery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: var(--space-4);
+  }
+}
+
+@media (min-width: 2560px) {
+  .image-gallery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--space-5);
+  }
+}
+
 .gallery-thumbnail-wrap {
   aspect-ratio: 4 / 3;
   border-radius: var(--radius-md);
@@ -358,6 +403,20 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: var(--space-3);
+}
+
+@media (min-width: 1440px) {
+  .members-list-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--space-4);
+  }
+}
+
+@media (min-width: 2560px) {
+  .members-list-grid {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--space-5);
+  }
 }
 
 .member-chip {
@@ -463,4 +522,13 @@
 
 .admin-table tr:last-child td {
   border-bottom: none;
+}
+
+@media (min-width: 1440px) {
+  .admin-table {
+    font-size: var(--text-base);
+  }
+  .admin-table th, .admin-table td {
+    padding: var(--space-4) var(--space-5);
+  }
 }

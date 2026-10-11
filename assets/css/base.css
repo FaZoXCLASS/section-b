@@ -13,10 +13,11 @@ html {
   -webkit-text-size-adjust: 100%;
   color-scheme: dark;
   scroll-behavior: smooth;
-  height: 100%;
+  min-height: 100%;
 }
 
 body {
+  min-height: 100%;
   min-height: 100vh;
   min-height: 100dvh;
   background-color: var(--bg-app);
@@ -27,6 +28,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  overflow-y: auto;
   position: relative;
 
   /* Blueprint Grid Motif & Warm Radial Vignette */
@@ -97,16 +99,28 @@ button, input, select, textarea, a.interactive-btn {
 }
 
 .main-content {
-  flex: 1;
+  flex: 1 0 auto;
   width: 100%;
-  max-width: 1140px;
+  max-width: var(--container-max-width, 1140px);
   margin: 0 auto;
-  padding: var(--space-6) var(--space-4) calc(var(--space-12) + var(--safe-bottom) + 50px);
+  padding: var(--space-6) var(--space-4) calc(var(--space-12) + 70px + var(--safe-bottom));
 }
 
 @media (min-width: 768px) {
   .main-content {
-    padding: var(--space-8) var(--space-6) calc(var(--space-8) + var(--safe-bottom));
+    padding: var(--space-8) var(--space-6) var(--space-12);
+  }
+}
+
+@media (min-width: 1024px) {
+  .main-content {
+    padding: var(--space-8) var(--space-8) calc(var(--space-12) + var(--space-6));
+  }
+}
+
+@media (min-width: 1920px) {
+  .main-content {
+    padding: var(--space-10) var(--space-10) calc(var(--space-12) + var(--space-8));
   }
 }
 
