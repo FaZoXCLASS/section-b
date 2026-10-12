@@ -34,6 +34,8 @@ export const CONFIG = {
 
   // 6. Limites et quotas
   MAX_FILES_PER_POST: 30,
+  // Durée de validité des publications temporaires (en jours)
+  TEMP_POST_DAYS: 10,
   // Quota indicatif par défaut en octets (1 Go = 1073741824 octets)
   STORAGE_QUOTA_BYTES: 1073741824,
 

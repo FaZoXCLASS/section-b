@@ -54,11 +54,13 @@ CREATE TABLE IF NOT EXISTS public.posts (
     member_id uuid REFERENCES public.members(id) ON DELETE SET NULL,
     author_label text, -- Used for admin posts or author display snapshot
     message text NOT NULL,
+    expires_at timestamptz NULL, -- NULL = permanent, non-NULL = temporary post expiring at this date
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_posts_module_created ON public.posts (module_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_member_created ON public.posts (member_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_expires_at ON public.posts (expires_at) WHERE expires_at IS NOT NULL;
 
 -- 2.4 Post files table
 -- Stores references to images and PDF files uploaded to Supabase Storage.
@@ -98,7 +100,8 @@ INSERT INTO public.settings (key, value) VALUES
     ('site_name', 'Génie civil Section B'),
     ('admin_display_name', 'Admin (Section B)'),
     ('storage_quota_bytes', '1073741824'), -- 1 GB quota
-    ('max_files_per_post', '30')
+    ('max_files_per_post', '30'),
+    ('temp_post_days', '10')
 ON CONFLICT (key) DO NOTHING;
 
 
@@ -404,7 +407,7 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.set_pseudo(text, text) TO anon, authenticated;
 
--- 5.5 list_modules(): List non-archived modules (or all if admin) with post counts
+-- 5.5 list_modules(): List non-archived modules (or all if admin) with post counts & file counts
 CREATE OR REPLACE FUNCTION public.list_modules(p_token text DEFAULT NULL)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -419,31 +422,49 @@ DECLARE
 BEGIN
     v_is_adm := public.is_admin();
     IF NOT v_is_adm THEN
-        v_member := public.get_member_by_token(p_token);
+        IF p_token IS NOT NULL AND length(trim(p_token)) >= 16 THEN
+            v_member := public.get_member_by_token(p_token);
+        END IF;
         IF v_member.id IS NULL OR v_member.status <> 'active' THEN
             RAISE EXCEPTION 'Accès refusé : membre inactif ou inconnu';
         END IF;
     END IF;
 
-    SELECT coalesce(jsonb_agg(sub.mod_json), '[]'::jsonb)
-    INTO v_result
-    FROM (
-        SELECT jsonb_build_object(
+    WITH active_posts AS (
+        SELECT
+            p.id,
+            p.module_id,
+            p.created_at
+        FROM public.posts p
+        WHERE (p.expires_at IS NULL OR p.expires_at > now())
+    ),
+    post_stats AS (
+        SELECT
+            ap.module_id,
+            count(DISTINCT ap.id) AS post_count,
+            count(pf.id) AS file_count,
+            max(ap.created_at) AS latest_post_at
+        FROM active_posts ap
+        LEFT JOIN public.post_files pf ON pf.post_id = ap.id
+        GROUP BY ap.module_id
+    )
+    SELECT coalesce(jsonb_agg(
+        jsonb_build_object(
             'id', m.id,
             'category', m.category,
             'name', m.name,
             'teacher', m.teacher,
             'sort_order', m.sort_order,
             'is_archived', m.is_archived,
-            'post_count', count(p.id),
-            'latest_post_at', max(p.created_at)
-        ) AS mod_json
-        FROM public.modules m
-        LEFT JOIN public.posts p ON p.module_id = m.id
-        WHERE (v_is_adm OR m.is_archived = false)
-        GROUP BY m.id, m.category, m.name, m.teacher, m.sort_order, m.is_archived
-        ORDER BY m.sort_order ASC, m.name ASC
-    ) sub;
+            'post_count', coalesce(ps.post_count, 0),
+            'file_count', coalesce(ps.file_count, 0),
+            'latest_post_at', ps.latest_post_at
+        ) ORDER BY m.sort_order ASC, m.name ASC
+    ), '[]'::jsonb)
+    INTO v_result
+    FROM public.modules m
+    LEFT JOIN post_stats ps ON ps.module_id = m.id
+    WHERE (v_is_adm OR m.is_archived = false);
 
     RETURN v_result;
 END;
@@ -487,6 +508,7 @@ BEGIN
         SELECT p.*
         FROM public.posts p
         WHERE p.module_id = p_module_id
+          AND (p.expires_at IS NULL OR p.expires_at > now())
           AND (p_before IS NULL OR p.created_at < p_before)
         ORDER BY p.created_at DESC
         LIMIT v_effective_limit
@@ -526,6 +548,7 @@ BEGIN
             'is_mine', (v_is_adm OR (v_member.id IS NOT NULL AND tp.member_id = v_member.id)),
             'message', tp.message,
             'created_at', tp.created_at,
+            'expires_at', tp.expires_at,
             'files', coalesce(pfa.files, '[]'::jsonb)
         ) ORDER BY tp.created_at DESC
     ), '[]'::jsonb)
@@ -539,12 +562,15 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.list_posts(text, uuid, int, timestamptz) TO anon, authenticated;
 
--- 5.7 create_post(): Create a post with files metadata
+-- 5.7 create_post(): Create a post with files metadata (supports temporary posts)
+DROP FUNCTION IF EXISTS public.create_post(text, uuid, text, jsonb);
+
 CREATE OR REPLACE FUNCTION public.create_post(
     p_token text DEFAULT NULL,
     p_module_id uuid DEFAULT NULL,
     p_message text DEFAULT NULL,
-    p_files jsonb DEFAULT '[]'::jsonb
+    p_files jsonb DEFAULT '[]'::jsonb,
+    p_temporary boolean DEFAULT false
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -557,10 +583,13 @@ DECLARE
     v_clean_msg text;
     v_max_files int := 30;
     v_max_setting text;
+    v_temp_days_setting text;
+    v_temp_days int := 10;
     v_admin_name text := 'Admin (Section B)';
     v_post public.posts%ROWTYPE;
     v_file jsonb;
     v_idx int := 0;
+    v_expires_at timestamptz := NULL;
 BEGIN
     v_is_adm := public.is_admin();
     IF NOT v_is_adm THEN
@@ -594,7 +623,7 @@ BEGIN
 
     -- File count limit
     SELECT value INTO v_max_setting FROM public.settings WHERE key = 'max_files_per_post';
-    IF v_max_setting IS NOT NULL THEN
+    IF v_max_setting IS NOT NULL AND v_max_setting ~ '^[0-9]+$' THEN
         v_max_files := v_max_setting::int;
     END IF;
 
@@ -609,12 +638,22 @@ BEGIN
         END IF;
     END IF;
 
-    INSERT INTO public.posts (module_id, member_id, author_label, message)
+    -- Calcul de l'expiration côté serveur si publication temporaire demandée
+    IF p_temporary IS TRUE THEN
+        SELECT value INTO v_temp_days_setting FROM public.settings WHERE key = 'temp_post_days';
+        IF v_temp_days_setting IS NOT NULL AND v_temp_days_setting ~ '^[0-9]+$' THEN
+            v_temp_days := v_temp_days_setting::int;
+        END IF;
+        v_expires_at := now() + (v_temp_days || ' days')::interval;
+    END IF;
+
+    INSERT INTO public.posts (module_id, member_id, author_label, message, expires_at)
     VALUES (
         p_module_id,
         v_member.id,
         CASE WHEN v_member.id IS NULL THEN v_admin_name ELSE NULL END,
-        v_clean_msg
+        v_clean_msg,
+        v_expires_at
     )
     RETURNING * INTO v_post;
 
@@ -654,12 +693,13 @@ BEGIN
         'module_id', v_post.module_id,
         'message', v_post.message,
         'created_at', v_post.created_at,
+        'expires_at', v_post.expires_at,
         'author_label', CASE WHEN v_member.id IS NULL THEN v_admin_name ELSE v_member.pseudo END,
         'is_mine', true
     );
 END;
 $$;
-GRANT EXECUTE ON FUNCTION public.create_post(text, uuid, text, jsonb) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.create_post(text, uuid, text, jsonb, boolean) TO anon, authenticated;
 
 -- 5.8 list_members(): List active member pseudonyms only
 CREATE OR REPLACE FUNCTION public.list_members(p_token text DEFAULT NULL)
@@ -801,7 +841,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-    v_quota bigint := 1073741824; -- 1 GB
+    v_quota bigint := 1073741824; -- 1 GB par défaut
     v_quota_setting text;
     v_image_bytes bigint := 0;
     v_pdf_bytes bigint := 0;
@@ -811,9 +851,13 @@ DECLARE
     v_posts_count bigint := 0;
     v_members_count bigint := 0;
     v_pending_count bigint := 0;
+    v_temp_posts_count bigint := 0;
+    v_temp_posts_bytes bigint := 0;
+    v_last_purge jsonb := '{}'::jsonb;
+    v_last_purge_raw text;
 BEGIN
     SELECT value INTO v_quota_setting FROM public.settings WHERE key = 'storage_quota_bytes';
-    IF v_quota_setting IS NOT NULL THEN
+    IF v_quota_setting IS NOT NULL AND v_quota_setting ~ '^[0-9]+$' THEN
         v_quota := v_quota_setting::bigint;
     END IF;
 
@@ -830,6 +874,25 @@ BEGIN
     SELECT count(*) INTO v_members_count FROM public.members WHERE status = 'active';
     SELECT count(*) INTO v_pending_count FROM public.members WHERE status = 'pending';
 
+    -- Métriques des publications temporaires actives
+    SELECT
+        count(DISTINCT p.id),
+        coalesce(sum(pf.size_bytes), 0)
+    INTO v_temp_posts_count, v_temp_posts_bytes
+    FROM public.posts p
+    LEFT JOIN public.post_files pf ON pf.post_id = p.id
+    WHERE p.expires_at IS NOT NULL AND p.expires_at > now();
+
+    -- Métadonnées de la dernière purge automatique
+    SELECT value INTO v_last_purge_raw FROM public.settings WHERE key = 'last_purge';
+    IF v_last_purge_raw IS NOT NULL THEN
+        BEGIN
+            v_last_purge := v_last_purge_raw::jsonb;
+        EXCEPTION WHEN OTHERS THEN
+            v_last_purge := '{}'::jsonb;
+        END;
+    END IF;
+
     RETURN jsonb_build_object(
         'quota_bytes', v_quota,
         'used_bytes', v_total_bytes,
@@ -840,6 +903,9 @@ BEGIN
         'posts_count', v_posts_count,
         'active_members_count', v_members_count,
         'pending_requests_count', v_pending_count,
+        'temp_posts_count', v_temp_posts_count,
+        'temp_posts_bytes', v_temp_posts_bytes,
+        'last_purge', v_last_purge,
         'usage_percent', CASE WHEN v_quota > 0 THEN round((v_total_bytes::numeric / v_quota::numeric) * 100, 2) ELSE 0 END
     );
 END;

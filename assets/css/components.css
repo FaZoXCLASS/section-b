@@ -574,6 +574,88 @@
   }
 }
 
+/* --- COMMUTATEUR ACCESSIBLE (TOGGLE SWITCH) --- */
+.switch-control {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--duration-fast) ease;
+}
+
+.switch-control:hover {
+  border-color: var(--border-medium);
+}
+
+.switch-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.switch-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-full);
+}
+
+.switch-toggle:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+.switch-track {
+  width: 44px;
+  height: 24px;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  box-sizing: border-box;
+  transition: background-color var(--duration-fast) ease, border-color var(--duration-fast) ease;
+}
+
+.switch-thumb {
+  width: 18px;
+  height: 18px;
+  background-color: var(--text-muted);
+  border-radius: var(--radius-full);
+  transition: transform var(--duration-fast) ease, background-color var(--duration-fast) ease;
+}
+
+.switch-toggle.is-active .switch-track {
+  background-color: rgba(217, 119, 6, 0.25);
+  border-color: var(--accent-gold);
+}
+
+.switch-toggle.is-active .switch-thumb {
+  transform: translateX(20px);
+  background-color: var(--accent-gold);
+}
+
+.badge-temporary {
+  background-color: rgba(217, 119, 6, 0.18);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-weight: 500;
+}
+
 /* --- LIGHTBOX (GALERIE D'IMAGES) --- */
 
 .lightbox-overlay {

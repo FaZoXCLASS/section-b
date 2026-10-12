@@ -5,7 +5,7 @@
 import { api } from '../api.js';
 import { session } from '../session.js';
 import { storage } from '../storage.js';
-import { h, icon, formatDate, formatBytes } from '../utils.js';
+import { h, icon, formatDate, formatBytes, formatExpiry } from '../utils.js';
 import { skeleton } from '../ui/skeleton.js';
 import { lightbox } from '../ui/lightbox.js';
 import { modal } from '../ui/modal.js';
@@ -168,10 +168,24 @@ function renderPostCard(post, token, onDeleted) {
 
   const authorAvatar = h('div', { className: 'avatar-initial' }, authorInitial);
 
+  // Badge d'expiration pour les publications temporaires
+  let expiryBadge = null;
+  if (post.expires_at) {
+    const expInfo = formatExpiry(post.expires_at);
+    expiryBadge = h('span', {
+      className: 'badge-temporary',
+      title: `Suppression automatique le ${formatDate(post.expires_at).absolute}`,
+    }, [
+      icon('hourglass', 'svg-icon'),
+      h('span', {}, `Temporaire · ${expInfo.text}`),
+    ]);
+  }
+
   const authorDetails = h('div', {}, [
-    h('div', { style: 'display: flex; align-items: center; gap: 8px;' }, [
+    h('div', { style: 'display: flex; align-items: center; gap: 8px; flex-wrap: wrap;' }, [
       h('span', { className: 'post-author-name' }, post.author_pseudo || post.author_label || 'Anonyme'),
       post.is_admin_post ? h('span', { className: 'badge badge-cours' }, 'Admin') : null,
+      expiryBadge,
     ]),
     h('time', {
       className: 'post-date',
@@ -204,6 +218,7 @@ function renderPostCard(post, token, onDeleted) {
           try {
             await api.deletePost(token, post.id);
             toast.success('Publication supprimée.');
+            window.dispatchEvent(new CustomEvent('app:post-deleted', { detail: { postId: post.id } }));
             if (typeof onDeleted === 'function') onDeleted();
           } catch (err) {
             toast.error(err.message || 'Impossible de supprimer cette publication.');

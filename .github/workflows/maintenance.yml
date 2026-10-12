@@ -1,0 +1,66 @@
+name: Supabase Maintenance & Keep-Alive
+
+on:
+  schedule:
+    # Exécution quotidienne à 05:00 UTC (matin)
+    - cron: '0 5 * * *'
+  workflow_dispatch: # Déclenchement manuel depuis l'onglet Actions de GitHub
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Keep-Alive (Ping Supabase Database)
+        run: |
+          echo "=== PING DE RÉVEIL SUPABASE ==="
+          RAW_URL="${{ secrets.SUPABASE_URL }}"
+          CLEAN_URL="${RAW_URL%/}"
+          CLEAN_URL="${CLEAN_URL%/rest/v1}"
+          CLEAN_URL="${CLEAN_URL%/}"
+
+          echo "Appel RPC ping sur : ${CLEAN_URL}/rest/v1/rpc/ping"
+
+          STATUS=$(curl -s -o ping_response.txt -w "%{http_code}" -X POST "${CLEAN_URL}/rest/v1/rpc/ping" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+
+          echo "Code HTTP Ping : $STATUS"
+          cat ping_response.txt
+          echo ""
+
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ]; then
+            echo "Succès : La base de données Supabase est bien active !"
+          else
+            echo "Erreur lors du ping Supabase (Code: $STATUS)"
+            exit 1
+          fi
+
+      - name: 2. Purge automatique des leçons temporaires expirées
+        run: |
+          echo "=== PURGE DES PUBLICATIONS EXPIRÉES (10 JOURS) ==="
+          RAW_URL="${{ secrets.SUPABASE_URL }}"
+          CLEAN_URL="${RAW_URL%/}"
+          CLEAN_URL="${CLEAN_URL%/rest/v1}"
+          CLEAN_URL="${CLEAN_URL%/}"
+
+          echo "Appel Edge Function sur : ${CLEAN_URL}/functions/v1/files"
+
+          PURGE_STATUS=$(curl -s -o purge_response.txt -w "%{http_code}" -X POST "${CLEAN_URL}/functions/v1/files" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -d '{"action": "purge_expired"}')
+
+          echo "Code HTTP Purge : $PURGE_STATUS"
+          cat purge_response.txt
+          echo ""
+
+          if [ "$PURGE_STATUS" -ge 200 ] && [ "$PURGE_STATUS" -lt 300 ]; then
+            echo "Succès : Purge des fichiers et publications expirées exécutée avec succès !"
+          else
+            echo "Erreur lors de la purge automatique (Code: $PURGE_STATUS)"
+            exit 1
+          fi

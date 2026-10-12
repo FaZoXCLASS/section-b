@@ -356,7 +356,7 @@ export async function openCreatePostModal({
         progressLabel.textContent = 'Enregistrement de la publication...';
 
         // --- ÉTAPE 4 : Création du post en base de données ---
-        const createdPost = await api.createPost(token, selectedModuleId, messageVal, finalFilesMetadata);
+        const createdPost = await api.createPost(token, selectedModuleId, messageVal, finalFilesMetadata, isTemporary);
 
         progressBarFill.style.width = '100%';
         toast.success('Publication partagée avec succès !');
@@ -367,6 +367,8 @@ export async function openCreatePostModal({
         });
 
         modal.close();
+
+        window.dispatchEvent(new CustomEvent('app:post-created', { detail: createdPost }));
 
         if (typeof onPostCreated === 'function') {
           onPostCreated(createdPost);
@@ -387,6 +389,65 @@ export async function openCreatePostModal({
       }
     },
   }, 'Publier');
+
+  // --- Commutateur "Publication temporaire (10 jours)" ---
+  let isTemporary = false; // Par défaut à OFF à chaque ouverture
+
+  const switchTrack = h('span', { className: 'switch-track' }, [
+    h('span', { className: 'switch-thumb' }),
+  ]);
+
+  const switchButton = h('button', {
+    type: 'button',
+    role: 'switch',
+    className: 'switch-toggle',
+    'aria-checked': 'false',
+    'aria-label': `Publication temporaire (${CONFIG.TEMP_POST_DAYS || 10} jours)`,
+  }, switchTrack);
+
+  const toggleLabel = h('span', {
+    style: 'font-weight: 500; font-size: var(--text-sm); color: var(--text-primary); cursor: pointer;',
+  }, `Publication temporaire (${CONFIG.TEMP_POST_DAYS || 10} jours)`);
+
+  const helperText = h('p', {
+    className: 'switch-helper-text',
+    style: 'margin: 4px 0 0; font-size: var(--text-xs); color: var(--text-muted);',
+  }, 'La publication restera disponible jusqu\'à sa suppression manuelle.');
+
+  function updateToggleState(val) {
+    isTemporary = val;
+    switchButton.setAttribute('aria-checked', String(isTemporary));
+    if (isTemporary) {
+      switchButton.classList.add('is-active');
+      const expDate = new Date();
+      expDate.setDate(expDate.getDate() + (CONFIG.TEMP_POST_DAYS || 10));
+      const expFormatted = new Intl.DateTimeFormat('fr-FR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }).format(expDate);
+      helperText.textContent = `Cette publication et ses fichiers seront supprimés automatiquement le ${expFormatted}.`;
+      helperText.style.color = 'var(--status-warning)';
+    } else {
+      switchButton.classList.remove('is-active');
+      helperText.textContent = 'La publication restera disponible jusqu\'à sa suppression manuelle.';
+      helperText.style.color = 'var(--text-muted)';
+    }
+  }
+
+  switchButton.addEventListener('click', (e) => {
+    e.preventDefault();
+    updateToggleState(!isTemporary);
+  });
+
+  toggleLabel.addEventListener('click', () => {
+    updateToggleState(!isTemporary);
+  });
+
+  const temporaryToggleControl = h('div', { className: 'switch-control' }, [
+    h('div', { className: 'switch-header' }, [toggleLabel, switchButton]),
+    helperText,
+  ]);
 
   // Corps de la modale
   const modalContent = h('div', { style: 'display:flex; flex-direction:column; gap:16px;' }, [
@@ -413,6 +474,7 @@ export async function openCreatePostModal({
       dropzone,
       previewList,
     ]),
+    temporaryToggleControl,
     progressBox,
   ]);
 

@@ -6,12 +6,13 @@ import { CONFIG } from '../../../config.js';
 import { api } from '../api.js';
 import { session } from '../session.js';
 import { router, updateHeader, updateBottomNav } from '../app.js';
-import { h, icon, formatDate, formatBytes } from '../utils.js';
+import { h, icon, formatDate, formatBytes, formatExpiry, formatPlural } from '../utils.js';
 import { modal } from '../ui/modal.js';
 import { toast } from '../ui/toast.js';
 import { openCreatePostModal } from '../ui/postModal.js';
 
 let activeAdminTab = 'overview'; // 'overview', 'requests', 'members', 'modules', 'moderation', 'settings'
+let activeModerationFilter = 'all'; // 'all', 'permanent', 'temporary'
 
 export async function renderAdmin() {
   const mainView = document.getElementById('main-view');
@@ -23,6 +24,13 @@ export async function renderAdmin() {
   if (!session.isAdmin) {
     renderAdminLoginForm(mainView);
     return;
+  }
+
+  // Auto-nettoyage des temporaires expirés en tâche de fond (au plus une fois toutes les 3 heures)
+  const lastAutoPurge = parseInt(localStorage.getItem('admin_last_auto_purge') || '0', 10);
+  if (Date.now() - lastAutoPurge > 3 * 3600 * 1000) {
+    localStorage.setItem('admin_last_auto_purge', Date.now().toString());
+    api.purgeExpired().catch(() => {});
   }
 
   // 2. Administrateur connecté : afficher le tableau de bord complet
@@ -257,7 +265,54 @@ async function renderOverviewTab(container) {
     ]),
   ]);
 
+  // Section de purge et cycle de vie des leçons temporaires
+  const lastPurgeData = stats?.last_purge || {};
+  let lastPurgeText = 'Aucune purge récente enregistrée';
+  if (lastPurgeData.timestamp) {
+    const pDate = formatDate(lastPurgeData.timestamp).relative;
+    const pPosts = lastPurgeData.posts_deleted || 0;
+    const pBytes = formatBytes(lastPurgeData.bytes_freed || 0);
+    lastPurgeText = `Dernière purge : ${pDate} — ${pPosts} publication${pPosts > 1 ? 's' : ''}, ${pBytes} libérés`;
+  }
+
+  const purgeNowBtn = h('button', {
+    type: 'button',
+    className: 'btn btn-secondary btn-sm',
+    onClick: async () => {
+      purgeNowBtn.disabled = true;
+      purgeNowBtn.textContent = 'Purge en cours...';
+      try {
+        const res = await api.purgeExpired();
+        const freed = formatBytes(res.bytes_freed || res.bytesFreed || 0);
+        const count = res.posts_deleted || res.postsDeleted || 0;
+        toast.success(`Purge terminée : ${count} publication(s) supprimée(s), ${freed} libérés.`);
+        renderAdmin();
+      } catch (err) {
+        toast.error(err.message || 'Erreur lors de la purge.');
+        purgeNowBtn.disabled = false;
+        purgeNowBtn.textContent = 'Purger maintenant';
+      }
+    },
+  }, [icon('hourglass'), h('span', {}, 'Purger maintenant')]);
+
+  const purgeCard = h('div', {
+    className: 'card animate-fade',
+    style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:24px; padding:var(--space-4) var(--space-5); background:var(--bg-surface-2); border-left:3px solid var(--accent-gold);',
+  }, [
+    h('div', { style: 'display:flex; align-items:center; gap:12px;' }, [
+      icon('hourglass', 'svg-icon'),
+      h('div', {}, [
+        h('div', { style: 'font-weight:600; font-size:var(--text-sm);' }, 'Nettoyage des publications temporaires (10 jours)'),
+        h('div', { style: 'font-size:var(--text-xs); color:var(--text-muted);' }, lastPurgeText),
+      ]),
+    ]),
+    purgeNowBtn,
+  ]);
+
   // Grille des compteurs clés
+  const tempCount = stats?.temp_posts_count || 0;
+  const tempBytes = stats?.temp_posts_bytes || 0;
+
   const metricsGrid = h('div', {
     style: 'display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;',
   }, [
@@ -273,10 +328,16 @@ async function renderOverviewTab(container) {
       activeAdminTab = 'moderation';
       renderAdmin();
     }),
+    createMetricCard('Pubs temporaires', `${tempCount} (${formatBytes(tempBytes)})`, 'hourglass', 'badge-warning', () => {
+      activeAdminTab = 'moderation';
+      activeModerationFilter = 'temporary';
+      renderAdmin();
+    }),
     createMetricCard('Fichiers hébergés', (stats?.image_count || 0) + (stats?.pdf_count || 0), 'database', 'badge-td'),
   ]);
 
   container.appendChild(gaugeCard);
+  container.appendChild(purgeCard);
   container.appendChild(metricsGrid);
 }
 
@@ -860,9 +921,50 @@ async function renderModerationTab(container) {
     return;
   }
 
+  const permPosts = posts.filter((p) => !p.expires_at);
+  const tempPosts = posts.filter((p) => Boolean(p.expires_at));
+
+  // Filtres de modération
+  const filterBar = h('div', {
+    style: 'display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;',
+  }, [
+    createFilterButton('Toutes', posts.length, 'all'),
+    createFilterButton('Permanentes', permPosts.length, 'permanent'),
+    createFilterButton('Temporaires', tempPosts.length, 'temporary'),
+  ]);
+
+  function createFilterButton(label, count, filterKey) {
+    const isActive = activeModerationFilter === filterKey;
+    return h('button', {
+      type: 'button',
+      className: `btn btn-sm ${isActive ? 'btn-primary' : 'btn-secondary'}`,
+      onClick: () => {
+        activeModerationFilter = filterKey;
+        renderAdmin();
+      },
+    }, `${label} (${count})`);
+  }
+
+  container.appendChild(filterBar);
+
+  let displayedPosts = posts;
+  if (activeModerationFilter === 'permanent') {
+    displayedPosts = permPosts;
+  } else if (activeModerationFilter === 'temporary') {
+    displayedPosts = tempPosts;
+  }
+
+  if (displayedPosts.length === 0) {
+    container.appendChild(h('div', { className: 'empty-state animate-fade' }, [
+      icon('folder', 'empty-icon'),
+      h('h3', {}, 'Aucune publication dans cette sélection.'),
+    ]));
+    return;
+  }
+
   const list = h('div', { style: 'display:flex; flex-direction:column; gap:12px;' });
 
-  posts.forEach((p) => {
+  displayedPosts.forEach((p) => {
     const authorName = p.members?.pseudo
       ? `${p.members.pseudo} (${p.members.real_name})`
       : (p.author_label || 'Admin');
@@ -870,12 +972,25 @@ async function renderModerationTab(container) {
     const modName = p.modules ? `${p.modules.name} [${p.modules.category.toUpperCase()}]` : 'Module inconnu';
     const filesCount = p.post_files?.length || 0;
 
+    let expiryBadge = null;
+    if (p.expires_at) {
+      const expInfo = formatExpiry(p.expires_at);
+      expiryBadge = h('span', {
+        className: 'badge-temporary',
+        title: `Suppression automatique le ${formatDate(p.expires_at).absolute}`,
+      }, [
+        icon('hourglass', 'svg-icon'),
+        h('span', {}, `Temporaire · ${expInfo.text}`),
+      ]);
+    }
+
     const card = h('div', { className: 'card animate-fade', style: 'padding: var(--space-4);' }, [
       h('div', { style: 'display:flex; justify-content:space-between; align-items:flex-start; gap:12px;' }, [
         h('div', {}, [
-          h('div', { style: 'display:flex; align-items:center; gap:8px; margin-bottom:4px;' }, [
+          h('div', { style: 'display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;' }, [
             h('span', { className: 'badge badge-cours' }, modName),
             h('span', { style: 'font-size:12px; font-weight:600; color:var(--text-primary);' }, authorName),
+            expiryBadge,
             h('span', { style: 'font-size:11px; color:var(--text-muted);' }, formatDate(p.created_at).relative),
           ]),
           h('p', { style: 'font-size:var(--text-sm); color:var(--text-primary); margin:6px 0;' }, p.message),

@@ -110,28 +110,29 @@ export const api = {
   // ============================================================================
 
   /**
-   * Liste les modules actifs avec le nombre de publications et la date de la dernière publication.
+   * Liste les modules actifs avec le nombre de publications, de fichiers et la date de la dernière publication.
    * @param {string} [token]
    */
   async listModules(token = null) {
-    // Si l'administrateur est connecté, charger directement les modules sans blocage de jeton étudiant
+    const { data, error } = await supabase.rpc('list_modules', {
+       p_token: token,
+    });
+    if (!error && data) {
+      return data;
+    }
+
+    // Si l'administrateur est connecté et que le RPC a échoué (ou en attente de migration)
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (sessionData?.session?.user) {
-        const adminMods = await this.adminListModules();
-        if (adminMods && adminMods.length > 0) {
-          return adminMods;
-        }
+        return await this.adminListModules();
       }
     } catch {
-      // Poursuivre vers RPC pour les étudiants
+      // Ignorer l'erreur d'auth
     }
 
-    const { data, error } = await supabase.rpc('list_modules', {
-      p_token: token,
-    });
     if (error) throw new Error(formatApiError(error));
-    return data || [];
+    return [];
   },
 
   /**
@@ -158,13 +159,15 @@ export const api = {
    * @param {string} moduleId
    * @param {string} message
    * @param {Array} [files=[]]
+   * @param {boolean} [isTemporary=false] Indique si la publication doit expirer au bout de 10 jours
    */
-  async createPost(token = null, moduleId, message, files = []) {
+  async createPost(token = null, moduleId, message, files = [], isTemporary = false) {
     const { data, error } = await supabase.rpc('create_post', {
       p_token: token,
       p_module_id: moduleId,
       p_message: message,
       p_files: files,
+      p_temporary: Boolean(isTemporary),
     });
     if (error) throw new Error(formatApiError(error));
     return data;
@@ -410,6 +413,15 @@ export const api = {
    * Récupère la liste complète des modules pour l'administrateur (actifs et archivés).
    */
   async adminListModules() {
+    try {
+      const { data, error } = await supabase.rpc('list_modules', { p_token: null });
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data;
+      }
+    } catch {
+      // Fallback si RPC indisponible
+    }
+
     const { data, error } = await supabase
       .from('modules')
       .select('id, category, name, teacher, sort_order, is_archived, created_at')
@@ -499,7 +511,7 @@ export const api = {
     let query = supabase
       .from('posts')
       .select(`
-        id, module_id, author_label, message, created_at,
+        id, module_id, author_label, message, created_at, expires_at,
         modules(id, name, category),
         members(id, pseudo, real_name),
         post_files(id, kind, original_name, size_bytes)
@@ -514,5 +526,35 @@ export const api = {
     const { data, error } = await query;
     if (error) throw new Error(formatApiError(error));
     return data || [];
+  },
+
+  /**
+   * Déclenche la purge des publications temporaires expirées via l'Edge Function.
+   * Accessible par l'administrateur ou par un jeton secret partagé.
+   * @param {string|null} [secret=null]
+   */
+  async purgeExpired(secret = null) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const headers = { 'Content-Type': 'application/json' };
+    if (sessionData?.session?.access_token) {
+      headers['Authorization'] = `Bearer ${sessionData.session.access_token}`;
+    }
+    if (secret) {
+      headers['x-cron-secret'] = secret;
+    }
+
+    const res = await fetch(`${cleanBaseUrl}/functions/v1/${CONFIG.EDGE_FUNCTION_NAME}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        action: 'purge_expired',
+      }),
+    });
+
+    const result = await res.json();
+    if (!res.ok) {
+      throw new Error(result.error || 'Erreur lors de la purge des publications expirées.');
+    }
+    return result;
   },
 };

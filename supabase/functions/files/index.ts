@@ -2,18 +2,20 @@
 // GÉNIE CIVIL SECTION B — SUPABASE EDGE FUNCTION: files
 // ==============================================================================
 // Handles secure student & admin file operations:
-// 1. sign_upload  — Generates signed upload URLs with unguessable storage paths
-//                   after checking member active status and quota limits (<= 95%).
-// 2. delete_post   — Verifies author ownership (or admin status), deletes files
-//                   from Storage, then deletes the database post record.
-// 3. cancel_upload — Cleans up uploaded files if post creation failed (no orphans).
+// 1. sign_upload    — Generates signed upload URLs with unguessable storage paths
+//                     after checking member active status and quota limits (<= 95%).
+// 2. delete_post     — Verifies author ownership (or admin status), deletes files
+//                     from Storage, then deletes the database post record.
+// 3. cancel_upload   — Cleans up uploaded files if post creation failed (no orphans).
+// 4. purge_expired   — Batch purges expired temporary posts (<= now()) from both
+//                     Storage and DB, invoked by daily cron or authenticated admin.
 // ==============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -155,6 +157,143 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: "Action obligatoire." }, 400);
     }
 
+    // =========================================================================
+    // ACTION 4: PURGE EXPIRED TEMPORARY POSTS (SCHEDULED OR ADMIN)
+    // =========================================================================
+    if (action === "purge_expired") {
+      const cronSecretHeader = req.headers.get("x-cron-secret");
+      const expectedCronSecret = Deno.env.get("CRON_SECRET");
+
+      const isCronAuthorized = Boolean(
+        expectedCronSecret &&
+        cronSecretHeader &&
+        cronSecretHeader.trim() === expectedCronSecret.trim()
+      );
+
+      let isAdminAuthorized = false;
+      if (!isCronAuthorized) {
+        const callerAuth = await authenticateCaller(supabase, req, token);
+        isAdminAuthorized = Boolean(callerAuth.isAdmin);
+      }
+
+      if (!isCronAuthorized && !isAdminAuthorized) {
+        return jsonResponse({
+          error: "Accès refusé. Cette action requiert le secret de maintenance (x-cron-secret) ou une session administrateur valide.",
+        }, 401);
+      }
+
+      const startTime = Date.now();
+      const maxDurationMs = 25000; // 25 seconds guard
+      const defaultBucket = Deno.env.get("STORAGE_BUCKET") || "class-files";
+
+      let totalPostsDeleted = 0;
+      let totalFilesDeleted = 0;
+      let totalBytesFreed = 0;
+
+      while (Date.now() - startTime < maxDurationMs) {
+        // Fetch up to 50 expired posts
+        const { data: expiredPosts, error: expErr } = await supabase
+          .from("posts")
+          .select("id")
+          .not("expires_at", "is", null)
+          .lte("expires_at", new Date().toISOString())
+          .limit(50);
+
+        if (expErr) {
+          console.error("Erreur lors de la sélection des publications expirées:", expErr);
+          break;
+        }
+
+        if (!expiredPosts || expiredPosts.length === 0) {
+          break; // Tous les posts expirés ont été traités
+        }
+
+        for (const post of expiredPosts) {
+          if (Date.now() - startTime >= maxDurationMs) break;
+
+          // Récupération des fichiers attachés
+          const { data: postFiles, error: filesErr } = await supabase
+            .from("post_files")
+            .select("id, storage_path, thumb_path, volume, size_bytes")
+            .eq("post_id", post.id);
+
+          if (filesErr) {
+            console.error(`Erreur lecture fichiers pour post ${post.id}:`, filesErr);
+            continue;
+          }
+
+          let storageSuccess = true;
+          let postBytes = 0;
+          let postFilesCount = 0;
+
+          if (postFiles && postFiles.length > 0) {
+            // Regroupement par volume / bucket de stockage
+            const volumeMap = new Map<string, string[]>();
+            for (const pf of postFiles) {
+              const bucket = pf.volume && pf.volume !== "primary" ? pf.volume : defaultBucket;
+              if (!volumeMap.has(bucket)) volumeMap.set(bucket, []);
+              const pathsList = volumeMap.get(bucket)!;
+              if (pf.storage_path) pathsList.push(pf.storage_path);
+              if (pf.thumb_path) pathsList.push(pf.thumb_path);
+              postBytes += Number(pf.size_bytes) || 0;
+              postFilesCount++;
+            }
+
+            // Suppression via l'API Storage de Supabase
+            for (const [bucket, paths] of volumeMap.entries()) {
+              if (paths.length > 0) {
+                const { error: removeErr } = await supabase.storage.from(bucket).remove(paths);
+                if (removeErr) {
+                  console.error(`Erreur suppression Storage bucket ${bucket} pour post ${post.id}:`, removeErr);
+                  storageSuccess = false;
+                  break;
+                }
+              }
+            }
+          }
+
+          // Ne supprimer la ligne en base que si les fichiers physiques ont été purgés
+          if (storageSuccess) {
+            const { error: delErr } = await supabase.from("posts").delete().eq("id", post.id);
+            if (!delErr) {
+              totalPostsDeleted++;
+              totalFilesDeleted += postFilesCount;
+              totalBytesFreed += postBytes;
+            } else {
+              console.error(`Erreur suppression SQL post ${post.id}:`, delErr);
+            }
+          }
+        }
+      }
+
+      // Enregistrement de l'historique de purge dans settings
+      const purgeSummary = {
+        timestamp: new Date().toISOString(),
+        posts_deleted: totalPostsDeleted,
+        files_deleted: totalFilesDeleted,
+        bytes_freed: totalBytesFreed,
+      };
+
+      try {
+        await supabase.from("settings").upsert({
+          key: "last_purge",
+          value: JSON.stringify(purgeSummary),
+        });
+      } catch (settingsErr) {
+        console.warn("Impossible d'enregistrer last_purge dans settings:", settingsErr);
+      }
+
+      return jsonResponse({
+        success: true,
+        message: `Purge effectuée : ${totalPostsDeleted} publication(s) et ${totalFilesDeleted} fichier(s) supprimé(s).`,
+        posts_deleted: totalPostsDeleted,
+        files_deleted: totalFilesDeleted,
+        bytes_freed: totalBytesFreed,
+        timestamp: purgeSummary.timestamp,
+      });
+    }
+
+    // Authentification de l'utilisateur pour les autres actions
     const auth = await authenticateCaller(supabase, req, token);
     if (auth.error) {
       return jsonResponse({ error: auth.error }, 403);
@@ -165,38 +304,36 @@ Deno.serve(async (req: Request) => {
     // =========================================================================
     if (action === "sign_upload") {
       const { files } = body;
-
       if (!Array.isArray(files) || files.length === 0) {
-        return jsonResponse({ error: "Aucun fichier à téléverser." }, 400);
+        return jsonResponse({ error: "Aucun fichier spécifié." }, 400);
       }
 
-      // Check max files limit from settings
-      const { data: maxSetting } = await supabase
-        .from("settings")
-        .select("value")
-        .eq("key", "max_files_per_post")
-        .maybeSingle();
+      // 1. Quota check: ensure total storage <= 95% of quota
+      const { data: storageStats } = await supabase.rpc("get_storage_stats");
+      const usedBytes = storageStats?.used_bytes || 0;
+      const quotaBytes = storageStats?.quota_bytes || 1073741824; // Default 1 GB
 
-      const maxFiles = maxSetting ? parseInt(maxSetting.value, 10) : 30;
-      if (files.length > maxFiles) {
-        return jsonResponse({ error: `Nombre maximal de fichiers dépassé (max ${maxFiles}).` }, 400);
-      }
-
-      // Check storage quota (reject when >= 95% full)
-      const { data: stats } = await supabase.rpc("get_storage_stats");
-      if (stats && stats.usage_percent >= 95) {
+      const requestedBytes = files.reduce((acc, f) => acc + (f.size || 0), 0);
+      if (usedBytes + requestedBytes > quotaBytes * 0.95) {
         return jsonResponse({
-          error: "L'espace de stockage de la section est presque plein (≥ 95 %). Impossible d'ajouter de nouveaux fichiers. Contacte l'administrateur.",
+          error: "Espace de stockage plein (limite de sécurité de 95 % atteinte). Contactez l'administrateur.",
         }, 400);
       }
 
-      const allowedMimes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+      // 2. Process each requested file
+      const uploadOwnerId = auth.isAdmin ? "admin" : auth.memberId;
       const signedFiles = [];
-      const uploadOwnerId = auth.isAdmin ? "admin" : (auth.memberId || "unknown");
+
+      const allowedMimes = [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "application/pdf",
+      ];
 
       for (const file of files) {
-        const mime = (file.mime || "").toLowerCase();
-        const kind = file.kind === "pdf" || mime === "application/pdf" ? "pdf" : "image";
+        const mime = file.mime || "application/octet-stream";
+        const kind = file.kind || (mime.startsWith("image/") ? "image" : "pdf");
 
         if (!allowedMimes.includes(mime)) {
           return jsonResponse({
@@ -275,18 +412,23 @@ Deno.serve(async (req: Request) => {
       // 2. Fetch all associated files to purge from storage
       const { data: postFiles } = await supabase
         .from("post_files")
-        .select("storage_path, thumb_path")
+        .select("storage_path, thumb_path, volume")
         .eq("post_id", postId);
 
-      const pathsToDelete: string[] = [];
+      const pathsToDeleteByVolume = new Map<string, string[]>();
       for (const pf of postFiles || []) {
-        if (pf.storage_path) pathsToDelete.push(pf.storage_path);
-        if (pf.thumb_path) pathsToDelete.push(pf.thumb_path);
+        const bucket = pf.volume && pf.volume !== "primary" ? pf.volume : "class-files";
+        if (!pathsToDeleteByVolume.has(bucket)) pathsToDeleteByVolume.set(bucket, []);
+        const list = pathsToDeleteByVolume.get(bucket)!;
+        if (pf.storage_path) list.push(pf.storage_path);
+        if (pf.thumb_path) list.push(pf.thumb_path);
       }
 
       // 3. Delete files from storage
-      if (pathsToDelete.length > 0) {
-        await supabase.storage.from("class-files").remove(pathsToDelete);
+      for (const [bucket, paths] of pathsToDeleteByVolume.entries()) {
+        if (paths.length > 0) {
+          await supabase.storage.from(bucket).remove(paths);
+        }
       }
 
       // 4. Delete post row (cascades to post_files)
@@ -298,7 +440,6 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({
         success: true,
         message: "Publication et fichiers supprimés avec succès.",
-        deletedFilesCount: pathsToDelete.length,
       });
     }
 

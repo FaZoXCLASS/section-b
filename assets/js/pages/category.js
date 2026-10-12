@@ -4,7 +4,7 @@
 
 import { api } from '../api.js';
 import { session } from '../session.js';
-import { h, icon, formatDate } from '../utils.js';
+import { h, icon, formatDate, formatPlural } from '../utils.js';
 import { skeleton } from '../ui/skeleton.js';
 
 const categoryTitles = {
@@ -67,8 +67,16 @@ export async function renderCategory(categoryKey) {
   const grid = h('div', { className: 'modules-grid' });
 
   modules.forEach((mod) => {
+    const postCount = Number(mod.post_count) || 0;
+    const fileCount = Number(mod.file_count) || 0;
+
+    let countText = formatPlural(postCount, 'publication');
+    if (postCount > 0 && fileCount > 0) {
+      countText += ` · ${formatPlural(fileCount, 'fichier')}`;
+    }
+
     const latestPostText = mod.latest_post_at
-      ? `Dernier ajout : ${formatDate(mod.latest_post_at).relative}`
+      ? `Dernier partage : ${formatDate(mod.latest_post_at).relative}`
       : 'Aucun partage';
 
     const card = h('a', {
@@ -83,7 +91,7 @@ export async function renderCategory(categoryKey) {
         h('h3', { style: 'font-size: var(--text-lg); margin-bottom: 6px;' }, mod.name),
       ]),
       h('div', { className: 'module-stats' }, [
-        h('span', {}, `${mod.post_count || 0} publication${(mod.post_count || 0) > 1 ? 's' : ''}`),
+        h('span', {}, countText),
         h('span', {}, latestPostText),
       ]),
     ]);

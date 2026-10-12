@@ -127,6 +127,48 @@ export function formatDate(dateInput) {
 }
 
 /**
+ * Pluralisation correcte en langue française.
+ * En français, 0 et 1 prennent le singulier, à partir de 2 prend le pluriel.
+ * @param {number} count
+ * @param {string} singular
+ * @param {string} [plural]
+ * @returns {string}
+ */
+export function formatPlural(count, singular, plural = `${singular}s`) {
+  const n = Number(count) || 0;
+  return `${n} ${n > 1 ? plural : singular}`;
+}
+
+/**
+ * Calcule le délai restant avant expiration d'une publication temporaire.
+ * @param {string|Date} expiresAt
+ * @returns {{ text: string, isUrgent: boolean, isExpired: boolean }}
+ */
+export function formatExpiry(expiresAt) {
+  if (!expiresAt) return { text: '', isUrgent: false, isExpired: false };
+  const expDate = new Date(expiresAt);
+  const diffMs = expDate.getTime() - Date.now();
+
+  if (diffMs <= 0) {
+    return { text: 'Expiré', isUrgent: true, isExpired: true };
+  }
+
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffDays > 1) {
+    return { text: `expire dans ${diffDays} jours`, isUrgent: false, isExpired: false };
+  } else if (diffDays === 1) {
+    return { text: 'expire demain', isUrgent: true, isExpired: false };
+  } else if (diffHours >= 1) {
+    return { text: `expire aujourd'hui (${diffHours} h)`, isUrgent: true, isExpired: false };
+  } else {
+    const diffMins = Math.max(1, Math.floor(diffMs / (1000 * 60)));
+    return { text: `expire dans ${diffMins} min`, isUrgent: true, isExpired: false };
+  }
+}
+
+/**
  * Génère des icônes SVG légères et nettes.
  * @param {string} name
  * @param {string} [className='']
@@ -160,6 +202,8 @@ export function icon(name, className = '') {
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
     database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>',
     shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    hourglass: '<path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>',
   };
 
   svg.innerHTML = icons[name] || icons.fileText;
